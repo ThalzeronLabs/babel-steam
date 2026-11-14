@@ -30,6 +30,7 @@ public static class Program
                   Babel.exe --tray       liga quieto na bandeja (o que o Windows usa ao iniciar)
                   Babel.exe --eco        usa o motor de teste "[PT] texto", sem chave e sem custo
                   Babel.exe check        mostra o dono da porta e o que o Babel faria com cada página (só leitura)
+                  Babel.exe selftest     traduz duas frases de exemplo com a chave guardada (uma chamada ao Gemini)
                   Babel.exe render DIR   desenha as imagens do README a partir das janelas de verdade
                 """);
             return 0;
@@ -56,6 +57,24 @@ public static class Program
                 var where = Uri.TryCreate(t.Url, UriKind.Absolute, out var u) && u.Scheme == "https" ? u.Host + u.AbsolutePath : t.Url.Split('?')[0];
                 Console.WriteLine($"  {Pages.Judge(t, s.Port, s.TranslateChat),-14} {t.Type,-8} {where}");
             }
+            return 0;
+        }
+        if (args.Length > 0 && args[0] == "selftest")
+        {
+            // One real call to Gemini with the saved key: two sample sentences, the model and the tokens. Never prints the key.
+            AttachConsole(-1);
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            var key = KeyStore.Read();
+            if (key == null)
+            {
+                Console.WriteLine("\nNo saved key: open Babel and paste your key first.");
+                return 2;
+            }
+            var engine = GeminiEngine.CreateAsync(key, "auto").GetAwaiter().GetResult();
+            var sample = new[] { "The boss fight in this update is far too hard now, please nerf it", "Patch notes: fixed a crash when loading saves" };
+            var result = engine.TranslateAsync(sample).GetAwaiter().GetResult();
+            Console.WriteLine($"\nModel: {engine.Model} · key {KeyStore.Hint(key)} · tokens in {engine.TokensIn}, out {engine.TokensOut}");
+            for (int i = 0; i < sample.Length; i++) Console.WriteLine($"  [{result[i].L}] {sample[i]}\n       -> {result[i].T}");
             return 0;
         }
         if (args.Length > 0 && args[0] == "render")
