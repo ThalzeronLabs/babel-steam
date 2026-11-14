@@ -34,7 +34,10 @@ Brazilian Portuguese **on the spot, inside the Steam window**, with the user's o
 4. **Translation** joins requests from every page into batches. The **SQLite cache** answers first, keyed by a SHA-256
    of the text and a version of the instructions; only new text goes to Gemini, which picks the newest Flash-Lite model
    at start-up and follows a [Brazilian gamer glossary](src/Babel/Web/glossario.txt). A failing text splits its batch
-   until it is isolated, and a page cannot ask for more than 400,000 characters a minute.
+   until it is isolated, and a page cannot ask for more than 400,000 characters a minute. When Google refuses because
+   of the account itself (the prepaid credit of a billing-enabled project is used up, or the quota is reached), Babel
+   stops asking for a minute and says so in the tray. The key test in the setup translates one word, so a key with no
+   credit is caught before you finish.
 
 If Steam is opened another way (a desktop shortcut), Babel reopens it with the port, but only with no game running,
 after 45 s of stability and at most once every 10 minutes.

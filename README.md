@@ -128,6 +128,12 @@ por dia, que o Google muda de tempos em tempos (veja os [limites atuais](https:/
 O Babel economiza o que pode: só traduz o que está na tela, junta os textos em lotes e guarda cada tradução para nunca
 pedir a mesma duas vezes. Se o Google disser que o limite foi atingido, ele espera e tenta de novo.
 
+**O Babel diz que o crédito acabou.** A chave é de um projeto do Google com cobrança pré-paga, e o saldo zerou. Enquanto
+for assim, o Google recusa toda tradução. O mais simples é criar uma chave nova num projeto sem cobrança, porque o nível
+grátis basta para o uso normal. A outra saída é pôr crédito no [AI Studio](https://aistudio.google.com/). O teste da
+chave na configuração traduz uma palavra, e por isso já pega esse caso antes de você terminar. Se acontecer depois, o
+Babel avisa pela bandeja e para de pedir por um minuto, em vez de insistir.
+
 **Por que não usar o tradutor do navegador?** Porque a Steam não é um navegador comum: a biblioteca, as notas de
 atualização e o chat ficam dentro do aplicativo, onde o tradutor do navegador não chega.
 

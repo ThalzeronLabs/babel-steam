@@ -32,8 +32,21 @@ public sealed class TrayApp
         menu.Items.Add("Sair", null, (_, _) => Quit());
         menu.Opening += (_, _) => pauseItem.Text = runtime.Injector?.Paused == true ? "Retomar a tradução" : "Pausar a tradução";
         icon.ContextMenuStrip = menu;
-        runtime.Changed += () => wpf.Dispatcher.BeginInvoke(UpdateTooltip);
+        runtime.Changed += () => wpf.Dispatcher.BeginInvoke(() =>
+        {
+            UpdateTooltip();
+            // A problem that shows up while translating (the credit ran out, the quota was reached) is told once,
+            // so the person is not left wondering why Steam went back to English.
+            var problem = runtime.Translator?.EngineProblem;
+            if (problem != null && problem != lastEngineProblem)
+                ShowBalloon("O Babel parou de traduzir", problem == "http-429"
+                    ? "O Google atingiu o limite de uso da sua chave. Volto a tentar sozinho."
+                    : "O Google recusou a sua chave. Clique aqui para ver o que fazer.");
+            lastEngineProblem = problem;
+        });
     }
+
+    string? lastEngineProblem;
 
     void UpdateTooltip()
     {
