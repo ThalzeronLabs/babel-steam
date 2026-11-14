@@ -77,6 +77,63 @@ public sealed class TranslatorTests : IDisposable
         Assert.Equal(1, t.Failed);
     }
 
+    /// <summary>Refuses like Google does when the account is the problem, until told to answer.</summary>
+    sealed class RefusingEngine(int status) : IEngine
+    {
+        public int Calls;
+        public bool Answer;
+        public string Name => "refusing";
+
+        public Task<IReadOnlyList<Item>> TranslateAsync(IReadOnlyList<string> texts, CancellationToken ct = default)
+        {
+            Interlocked.Increment(ref Calls);
+            if (!Answer) throw new GeminiException((System.Net.HttpStatusCode)status, """{"error":{"code":402,"status":"RESOURCE_EXHAUSTED"}}""");
+            return Task.FromResult<IReadOnlyList<Item>>(texts.Select(t => new Item("PT:" + t, "en")).ToList());
+        }
+    }
+
+    [Fact]
+    public async Task Credit_running_out_is_told_once_and_pauses_the_requests()
+    {
+        var engine = new RefusingEngine(402);
+        var t = new Translator(engine, cache, new Settings());
+        int told = 0;
+        t.ProblemChanged += () => told++;
+        var r = await t.TranslateAsync(["um", "dois", "três", "quatro"]);
+        Assert.All(r, Assert.Null);
+        Assert.Equal(1, engine.Calls); // the batch is not split: every half would be refused the same way
+        Assert.Equal("no-credit", t.EngineProblem);
+        await t.TranslateAsync(["cinco"]);
+        Assert.Equal(1, engine.Calls); // paused: nothing goes out for a minute
+        Assert.Equal(1, told);
+    }
+
+    [Fact]
+    public async Task The_problem_clears_when_Gemini_answers_again()
+    {
+        var engine = new RefusingEngine(429);
+        var t = new Translator(engine, cache, new Settings()) { AccountPause = TimeSpan.Zero };
+        await t.TranslateAsync(["um"]);
+        Assert.Equal("http-429", t.EngineProblem);
+        engine.Answer = true;
+        var r = await t.TranslateAsync(["um"]);
+        Assert.Equal("PT:um", r[0]!.T);
+        Assert.Null(t.EngineProblem);
+    }
+
+    [Theory]
+    [InlineData(400, "invalid-key", false)]
+    [InlineData(403, "invalid-key", true)]
+    [InlineData(402, "no-credit", true)]
+    [InlineData(429, "http-429", true)]
+    [InlineData(503, "http-503", false)]
+    public void Google_errors_are_named_for_the_person(int status, string kind, bool account)
+    {
+        var e = new GeminiException((System.Net.HttpStatusCode)status, "");
+        Assert.Equal(kind, e.Kind);
+        Assert.Equal(account, e.AboutTheAccount);
+    }
+
     [Fact]
     public async Task Batches_respect_the_limit()
     {

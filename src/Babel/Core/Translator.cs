@@ -19,6 +19,21 @@ public sealed class Translator(IEngine engine, Cache cache, Settings settings)
     /// <summary>True when the per-minute or per-day limit stopped a batch; the next allowed batch clears it.</summary>
     public bool LimitReached => budget.LimitReached;
 
+    /// <summary>"no-credit", "http-429" or "invalid-key" while Gemini refuses for the account itself; null once it
+    /// answers again. While it is set, no request goes out for a minute (they would all fail the same way).</summary>
+    public string? EngineProblem { get; private set; }
+    public event Action? ProblemChanged;
+    public TimeSpan AccountPause { get; set; } = TimeSpan.FromMinutes(1);
+    long pausedUntil;
+
+    void SetProblem(string? problem)
+    {
+        if (EngineProblem == problem) return;
+        EngineProblem = problem;
+        Log.Write(problem == null ? "Gemini answers again" : $"Gemini refused for the account ({problem}); pausing for {AccountPause.TotalSeconds:0} s");
+        ProblemChanged?.Invoke();
+    }
+
     public async Task<Item?[]> TranslateAsync(IReadOnlyList<string> texts)
     {
         var tasks = new Task<Item?>[texts.Count];
@@ -80,6 +95,11 @@ public sealed class Translator(IEngine engine, Cache cache, Settings settings)
     async Task RunAsync(List<string> batch)
     {
         IReadOnlyList<Item> result;
+        if (DateTime.UtcNow.Ticks < Interlocked.Read(ref pausedUntil))
+        {
+            foreach (var t in batch) Deliver(t, null);
+            return;
+        }
         if (!budget.TryTake(batch.Sum(t => t.Length)))
         {
             Log.Write($"the {settings.MaxCharsPerMinute:N0}/minute or {settings.MaxCharsPerDay:N0}/day limit was reached; {batch.Count} text(s) not translated");
@@ -98,6 +118,14 @@ public sealed class Translator(IEngine engine, Cache cache, Settings settings)
                 slots.Release();
             }
         }
+        catch (GeminiException g) when (g.AboutTheAccount)
+        {
+            Interlocked.Exchange(ref pausedUntil, (DateTime.UtcNow + AccountPause).Ticks);
+            SetProblem(g.Kind);
+            Interlocked.Add(ref Failed, batch.Count);
+            foreach (var t in batch) Deliver(t, null);
+            return;
+        }
         catch (Exception e)
         {
             if (batch.Count > 1)
@@ -114,6 +142,7 @@ public sealed class Translator(IEngine engine, Cache cache, Settings settings)
             Deliver(batch[0], null);
             return;
         }
+        SetProblem(null);
         cache.Write(batch.Zip(result, (s, i) => (s, i)));
         Interlocked.Add(ref Translated, batch.Count);
         for (int i = 0; i < batch.Count; i++) Deliver(batch[i], result[i]);

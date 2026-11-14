@@ -258,6 +258,7 @@ public sealed class MainWindow : Window
                 "invalid-key" => "O Google recusou essa chave. Confira se copiou ela inteira, ou crie outra.",
                 "network" => "Não consegui falar com o Google. Confira a internet e tente de novo.",
                 "http-429" => "O Google disse que o limite de uso foi atingido. Espere um minuto e tente de novo.",
+                "no-credit" => "Essa chave é de um projeto do Google com cobrança, e o crédito dele acabou. Crie a chave num projeto sem cobrança (o nível grátis basta) ou ponha crédito no AI Studio.",
                 _ => $"O Google respondeu com um erro ({error}). Tente de novo em instantes.",
             };
             keyColor = Ui.Red;
@@ -406,6 +407,8 @@ public sealed class MainWindow : Window
             {
                 "no-key" => ("Falta a chave do Gemini", Ui.Red),
                 "invalid-key" => ("O Google recusou a chave: troque por outra", Ui.Red),
+                "no-credit" => ("O crédito do projeto dessa chave acabou: troque por uma chave do nível grátis", Ui.Red),
+                "http-429" => ("O Google pausou: o limite de uso da sua chave foi atingido. Volto a tentar sozinho", Ui.Amber),
                 _ => ("Sem conexão com o Google: tento de novo sozinho", Ui.Amber),
             };
         return runtime.Injector?.State switch

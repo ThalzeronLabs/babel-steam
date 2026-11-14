@@ -70,9 +70,20 @@ public static class Program
                 Console.WriteLine("\nNo saved key: open Babel and paste your key first.");
                 return 2;
             }
-            var engine = GeminiEngine.CreateAsync(key, "auto").GetAwaiter().GetResult();
             var sample = new[] { "The boss fight in this update is far too hard now, please nerf it", "Patch notes: fixed a crash when loading saves" };
-            var result = engine.TranslateAsync(sample).GetAwaiter().GetResult();
+            GeminiEngine engine;
+            IReadOnlyList<Core.Item> result;
+            try
+            {
+                engine = GeminiEngine.CreateAsync(key, "auto").GetAwaiter().GetResult();
+                result = engine.TranslateAsync(sample).GetAwaiter().GetResult();
+            }
+            catch (GeminiException g)
+            {
+                // Google's own answer (it never carries the key) says what to do: a refused key, credit or quota.
+                Console.WriteLine($"\nGemini refused ({(int)g.Status}, {g.Kind}) for key {KeyStore.Hint(key)}:\n{g.Body}");
+                return 3;
+            }
             Console.WriteLine($"\nModel: {engine.Model} · key {KeyStore.Hint(key)} · tokens in {engine.TokensIn}, out {engine.TokensOut}");
             for (int i = 0; i < sample.Length; i++) Console.WriteLine($"  [{result[i].L}] {sample[i]}\n       -> {result[i].T}");
             return 0;

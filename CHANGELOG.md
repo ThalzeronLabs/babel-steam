@@ -9,6 +9,9 @@ A primeira versão pública.
 - Configuração guiada em 3 passos: o que o Babel faz e o que vai para o Google; a chave grátis do Gemini, conferida
   com o Google na hora; iniciar com o Windows e ajustar a Steam.
 - A chave fica cifrada pelo Windows (DPAPI), só para o seu usuário neste PC.
+- Quando o Google recusa por causa da conta (o crédito pré-pago acabou, o limite foi atingido), o Babel avisa pela
+  bandeja e para de pedir por um minuto. O teste da chave traduz uma palavra, e por isso uma chave sem crédito já é
+  pega na configuração.
 - Cache local: cada trecho é traduzido uma vez só.
 - Alt + clique mostra o original; Alt + Shift + T liga e desliga a página; pausa pela bandeja.
 - As travas: só a janela principal, a loja e a comunidade, nunca as páginas de conta, carteira, pagamento, compras e

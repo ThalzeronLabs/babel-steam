@@ -126,18 +126,19 @@ public sealed class GeminiEngine : IEngine
         return Prompt.PickModel(names) ?? throw new InvalidOperationException("no Gemini Flash model is available for this key");
     }
 
-    /// <summary>Checks a key by listing the models (free, and nothing is translated).</summary>
+    /// <summary>Checks a key by listing the models and translating one word. Listing alone is not enough: a key from a
+    /// project whose prepaid credit ran out still lists the models, and only fails when it translates.</summary>
     public static async Task<(bool ok, string? model, string? error)> TestKeyAsync(string key, CancellationToken ct = default)
     {
         try
         {
             var e = await CreateAsync(key, "auto", ct);
+            await e.TranslateAsync(["Hello"], ct);
             return (true, e.Model, null);
         }
         catch (GeminiException g)
         {
-            return (false, null, g.Status == HttpStatusCode.BadRequest || g.Status == HttpStatusCode.Forbidden
-                ? "invalid-key" : $"http-{(int)g.Status}");
+            return (false, null, g.Kind);
         }
         catch (Exception ex)
         {
@@ -214,4 +215,19 @@ public sealed class GeminiException(HttpStatusCode status, string body) : Except
 {
     public HttpStatusCode Status { get; } = status;
     public string Body { get; } = body.Length > 300 ? body[..300] : body;
+
+    /// <summary>What the person has to know: the key was refused, the paid project ran out of credit, or the quota of
+    /// the key was reached. Google answers 402 when the prepaid credit of a billing-enabled project is used up.</summary>
+    public string Kind => (int)Status switch
+    {
+        400 or 401 or 403 => "invalid-key",
+        402 => "no-credit",
+        429 => "http-429",
+        var n => $"http-{n}",
+    };
+
+    /// <summary>The errors that will repeat on every request until the person acts (or the quota resets): retrying them
+    /// at once, or splitting the batch, only spends requests. A 400 is left out: during translation it can come from
+    /// one text, and splitting the batch finds it.</summary>
+    public bool AboutTheAccount => (int)Status is 401 or 402 or 403 or 429;
 }
