@@ -159,7 +159,7 @@ public sealed class MainWindow : Window
         foreach (var line in new[]
                  {
                      "•  O Babel é independente, sem ligação com a Valve. Ele só muda o texto na tela: não mexe nos arquivos da Steam, nos jogos nem na sua conta. Mesmo assim, o Acordo de Assinatura da Steam proíbe modificar o cliente sem autorização da Valve, e a Valve pode restringir contas. Use por sua conta e risco.",
-                     "•  Enquanto a Steam estiver aberta com a opção de depuração, com ou sem o Babel, qualquer programa deste PC pode controlar a Steam logada. Use num computador em que você confia.",
+                     "•  Enquanto a Steam estiver aberta com a opção de depuração, com ou sem o Babel, qualquer programa deste PC pode controlar a Steam logada, inclusive fazer compras com a carteira. Use num computador em que você confia.",
                      "•  O texto estrangeiro da tela vai para o Google pela SUA chave. A API do Gemini exige 18 anos ou mais. No nível grátis, o Google usa o texto para melhorar os produtos dele, e pessoas podem lê-lo; na União Europeia, na Suíça e no Reino Unido, só a chave paga é permitida.",
                      "•  Por isso o Babel nunca traduz as páginas de conta, carteira, pagamento e login, e o chat dos amigos vem desligado. Nada passa por nós: não há servidor do Babel.",
                  })
