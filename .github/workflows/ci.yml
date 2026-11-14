@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test
+        run: dotnet test tests/Babel.Tests -c Release
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the page script
+        run: node tests/web/pagina.test.mjs
+      - name: Publish (self-contained, one file)
+        run: dotnet publish src/Babel -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o out/win-x64
+      - name: Smoke test the exe
+        shell: pwsh
+        run: |
+          $p = Start-Process out/win-x64/Babel.exe -ArgumentList 'help' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Babel.exe help exited with $($p.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Babel-win-x64
+          path: out/win-x64/Babel.exe

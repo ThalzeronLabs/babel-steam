@@ -1,0 +1,46 @@
+# O glossário do BABEL: como o gamer brasileiro fala.
+# Uma regra por linha: "termo => como fica". "= manter" deixa o termo como está.
+# Mudou este arquivo? O BABEL refaz as traduções novas com ele (as antigas ficam no cache da versão anterior).
+
+buff => buff (verbo: buffar)
+nerf => nerf (verbo: nerfar)
+patch => patch
+hotfix => hotfix
+patch notes => notas da atualização
+update => atualização
+DLC => DLC
+early access => Acesso Antecipado
+wishlist => lista de desejos
+achievement => conquista
+workshop (Steam) => Oficina
+guide => guia
+review => análise
+recommended / not recommended => recomendado / não recomendado
+loot => loot
+drop rate => taxa de drop
+spawn => spawn (verbo: spawnar)
+respawn => respawn
+build (de personagem) => build
+crafting => crafting (verbo: craftar)
+grind => grind (verbo: grindar / farmar)
+farm => farmar
+boss => chefe
+raid => raid
+dungeon => dungeon
+skill => habilidade
+cooldown => cooldown
+hitbox => hitbox
+lag => lag
+FPS => FPS
+co-op => co-op
+PvP / PvE => PvP / PvE
+matchmaking => matchmaking
+server => servidor
+bug => bug
+crash => crash (verbo: crashar)
+softlock => softlock
+speedrun => speedrun
+GG / gg => GG
+devs => devs
+roadmap => roadmap
+save => save
