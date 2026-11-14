@@ -75,6 +75,8 @@ public class GuardTests
     [InlineData("ws://evil.example:9333/devtools/page/X")]
     [InlineData("ws://127.0.0.1:9444/devtools/page/X")]
     [InlineData("wss://127.0.0.1:9333/devtools/page/X")]
+    [InlineData("ws://localhost:9333/devtools/page/X")]
+    [InlineData("ws://[::1]:9333/devtools/page/X")]
     public void Babel_only_connects_to_this_PC_on_the_configured_port(string ws) =>
         Assert.Equal(Verdict.NotLocal, J("Steam", "about:blank", ws: ws));
 
@@ -125,6 +127,14 @@ public class GuardTests
         t = new DateTime(2026, 11, 15, 0, 1, 0);
         Assert.True(b.TryTake(500));
     }
+
+    [Theory]
+    [InlineData("\"C:\\Steam\\steam.exe\" -silent -cef-enable-debugging -devtools-port=9333", "\"C:\\Steam\\steam.exe\" -silent")]
+    [InlineData("-cef-enable-debugging -devtools-port=9333", "")]
+    [InlineData("-silent", "-silent")]
+    [InlineData("-devtools-port=1234 -silent -cef-enable-debugging", "-silent")]
+    public void Uninstalling_removes_the_debugging_options_when_there_is_no_copy(string before, string after) =>
+        Assert.Equal(after, Install.WithoutPort(before));
 
     [Theory]
     [InlineData(@"C:\Program Files (x86)\Steam\bin\cef\cef.win7x64\steamwebhelper.exe", true)]

@@ -20,6 +20,8 @@ public sealed class Injector(Settings settings, Translator translator, Func<int,
 {
     readonly Func<int, bool> portIsSteam = portIsSteam ?? PortOwner.IsSteamWebHelper;
 
+    internal Settings Settings => settings;
+
     /// <summary>A guard against a page that would ask for translations without end.</summary>
     public const int MaxCharsPerMinute = 400_000;
 
@@ -41,7 +43,10 @@ public sealed class Injector(Settings settings, Translator translator, Func<int,
     public static string BuildScript(int minWords)
     {
         using var s = typeof(Injector).Assembly.GetManifestResourceStream("Babel.pagina.js")!;
-        var script = new StreamReader(s, Encoding.UTF8).ReadToEnd().Replace("__PALAVRAS_MINIMAS__", minWords.ToString());
+        var allowed = JsonSerializer.Serialize(new { hosts = Pages.Hosts, sensiveis = Pages.SensitivePaths, cliente = true });
+        var script = new StreamReader(s, Encoding.UTF8).ReadToEnd()
+            .Replace("__PALAVRAS_MINIMAS__", minWords.ToString())
+            .Replace("__PERMITIDO__", allowed);
         var version = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(script)))[..12];
         return script.Replace("__VERSAO__", version);
     }
@@ -174,6 +179,10 @@ public sealed class Injector(Settings settings, Translator translator, Func<int,
         readonly ClientWebSocket ws = new();
         readonly ConcurrentDictionary<int, TaskCompletionSource<JsonNode>> waiting = new();
         readonly SemaphoreSlim sendLock = new(1, 1);
+        // Where the page is now (the main frame's id is the page's id) and which frame each script context belongs to.
+        // Both come as events of Runtime.enable and Page.enable: no extra command is needed.
+        readonly ConcurrentDictionary<string, string> frameUrls = new() { [target.Id] = target.Url };
+        readonly ConcurrentDictionary<int, string> contextFrame = new();
         int seq;
         DateTime windowStart = DateTime.UtcNow;
         long windowChars;
@@ -246,9 +255,32 @@ public sealed class Injector(Settings settings, Translator translator, Func<int,
                 {
                     if (waiting.TryRemove((int)idNode, out var tcs)) tcs.TrySetResult(node);
                 }
-                else if ((string?)node?["method"] == "Runtime.bindingCalled" && (string?)node["params"]?["name"] == "__babelSend")
+                else if (node?["method"] is JsonNode m)
                 {
-                    _ = HandleAsync(node["params"]!);
+                    var p = node["params"];
+                    string? bindingName = p?["name"]?.GetValue<string>();
+                    switch ((string?)m)
+                    {
+                        case "Runtime.bindingCalled" when bindingName == "__babelSend":
+                            _ = HandleAsync(p!);
+                            break;
+                        case "Runtime.executionContextCreated":
+                            if (p?["context"]?["id"] is JsonNode cid && (string?)p["context"]?["auxData"]?["frameId"] is string f)
+                                contextFrame[(int)cid] = f;
+                            break;
+                        case "Runtime.executionContextDestroyed":
+                            if (p?["executionContextId"] is JsonNode did) contextFrame.TryRemove((int)did, out _);
+                            break;
+                        case "Runtime.executionContextsCleared":
+                            contextFrame.Clear();
+                            break;
+                        case "Page.frameNavigated":
+                            if ((string?)p?["frame"]?["id"] is string fid && (string?)p["frame"]?["url"] is string url) frameUrls[fid] = url;
+                            break;
+                        case "Page.navigatedWithinDocument":
+                            if ((string?)p?["frameId"] is string nid && (string?)p["url"] is string nurl) frameUrls[nid] = nurl;
+                            break;
+                    }
                 }
             }
         }
@@ -270,10 +302,21 @@ public sealed class Injector(Settings settings, Translator translator, Func<int,
             try
             {
                 var request = JsonNode.Parse((string)p["payload"]!)!;
-                if ((string?)request["tipo"] == "log")
+                // Page log messages are not written: they could carry page text, and the log never holds page text.
+                if ((string?)request["tipo"] == "log") return;
+                // Only the page's main frame, and only while its CURRENT address is one Babel may translate: a tab that
+                // navigated to the account or the checkout after Babel connected is dropped here too.
+                int contextId = (int?)p["executionContextId"] ?? -1;
+                if (!contextFrame.TryGetValue(contextId, out var frameId) || frameId != target.Id)
                 {
-                    var msg = (string?)request["msg"] ?? "";
-                    Log.Write($"page: {(msg.Length > 300 ? msg[..300] : msg)}");
+                    Log.Write("a request from a frame that is not the page's main frame was dropped");
+                    return;
+                }
+                var now = target with { Url = frameUrls.GetValueOrDefault(target.Id, target.Url) };
+                var verdict = Pages.Judge(now, owner.Settings.Port, owner.Settings.TranslateChat);
+                if (verdict != Verdict.Translate)
+                {
+                    Log.Write($"a request from a page Babel does not translate was dropped ({verdict})");
                     return;
                 }
                 var texts = (request["textos"]?.AsArray() ?? [])

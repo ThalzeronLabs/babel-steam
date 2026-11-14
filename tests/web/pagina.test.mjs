@@ -40,5 +40,23 @@ confere('analisar com marcas', ctx.analisar('O <t1>chefe</t1> caiu<br/>de novo <
   { esq: ['t1', '/t1', 'br', 'i2'], textos: ['O ', 'chefe', ' caiu', 'de novo ', ' <3'] });
 confere('analisar sem marcas', ctx.analisar('só texto'), { esq: [], textos: ['só texto'] });
 
+// A parte 0: o script confere o próprio endereço antes de ler qualquer texto (a mesma regra do Pages.Judge).
+const regra = new Function('PERMITIDO', trecho('  const permitido = (loc)', '  if (window !== window.top) return;') + '; return permitido;');
+const permitido = regra({ hosts: ['store.steampowered.com', 'steamcommunity.com'], sensiveis: ['/account', '/checkout', '/cart', '/login', '/market', '/edit'], cliente: true });
+const loc = (u) => new URL(u);
+for (const [u, e] of [
+  ['https://store.steampowered.com/news/app/570', true],
+  ['https://steamcommunity.com/app/570/reviews/', true],
+  ['https://store.steampowered.com/account/', false],
+  ['https://store.steampowered.com/account/history/', false],
+  ['https://store.steampowered.com/checkout/?purchasetype=self', false],
+  ['https://steamcommunity.com/market/listings/1', false],
+  ['https://steamcommunity.com/id/alguem/edit/info', false],
+  ['https://login.steampowered.com/', false],
+  ['https://example.com/', false],
+  ['http://store.steampowered.com/news/', false],
+  ['about:blank', true],
+]) confere(`permitido(${u})`, permitido(loc(u)), e);
+
 console.log(falhas ? `${falhas} falha(s)` : 'todos os testes do pagina.js passaram');
 process.exit(falhas ? 1 : 0);

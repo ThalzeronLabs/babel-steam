@@ -64,6 +64,7 @@ public static class Install
     /// <summary>Adds the debugging port to Steam's start-up entry and Start menu shortcut, keeping a copy of each.</summary>
     public static void AdjustSteam(Settings s)
     {
+        s.SteamAdjusted = true;
         string port = string.Join(' ', Steam.LaunchArgs(s.Port));
         using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
         {
@@ -94,9 +95,15 @@ public static class Install
         using (var k = Registry.CurrentUser.CreateSubKey(RunKey))
         {
             if (s.SteamRunBackup != null) k.SetValue("Steam", s.SteamRunBackup);
+            else if (s.SteamAdjusted && k.GetValue("Steam") is string run) k.SetValue("Steam", WithoutPort(run));
             k.DeleteValue(RunName, false);
         }
-        if (s.SteamShortcutBackup != null && File.Exists(SteamShortcut)) SetShortcutArgs(SteamShortcut, s.SteamShortcutBackup);
+        if (File.Exists(SteamShortcut))
+        {
+            if (s.SteamShortcutBackup != null) SetShortcutArgs(SteamShortcut, s.SteamShortcutBackup);
+            else if (s.SteamAdjusted && ShortcutArgs(SteamShortcut) is string args) SetShortcutArgs(SteamShortcut, WithoutPort(args));
+        }
+        s.SteamAdjusted = false;
         if (File.Exists(MenuShortcut)) File.Delete(MenuShortcut);
         s.SteamRunBackup = s.SteamShortcutBackup = null;
         s.SetupDone = false;
@@ -115,6 +122,12 @@ public static class Install
         else s.Save();
         Log.Write("uninstalled");
     }
+
+    /// <summary>A Steam command line without the two debugging options, for when there was no copy to restore.</summary>
+    public static string WithoutPort(string commandLine) =>
+        System.Text.RegularExpressions.Regex.Replace(
+            System.Text.RegularExpressions.Regex.Replace(commandLine, @"\s*-cef-enable-debugging\b|\s*-devtools-port=\d+", ""),
+            @"\s{2,}", " ").Trim();
 
     // Windows shortcuts (.lnk) through the Windows Script Host, which every Windows has.
     static dynamic Shell() => Activator.CreateInstance(Type.GetTypeFromProgID("WScript.Shell")!)!;

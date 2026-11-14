@@ -35,6 +35,10 @@ public sealed class Settings
     public string? SteamRunBackup { get; set; }
     public string? SteamShortcutBackup { get; set; }
 
+    /// <summary>The person chose "adjust Steam". Uninstalling then also removes the port when there was no copy to
+    /// restore (Steam already opened with it before Babel).</summary>
+    public bool SteamAdjusted { get; set; }
+
     public bool SetupDone { get; set; }
 
     static readonly JsonSerializerOptions Json = new()
@@ -70,7 +74,7 @@ public sealed class Settings
     }
 }
 
-/// <summary>A small rotating log in %LOCALAPPDATA%\Babel\babel.log. It never stores translated text or the key.</summary>
+/// <summary>A small rotating log in %LOCALAPPDATA%\Babel\babel.log. It never stores page text, translations or the key.</summary>
 public static class Log
 {
     static readonly object Gate = new();

@@ -31,10 +31,10 @@ public static class Pages
         "Runtime.enable", "Runtime.addBinding", "Page.enable", "Page.addScriptToEvaluateOnNewDocument", "Runtime.evaluate",
     };
 
-    static readonly string[] Hosts = ["store.steampowered.com", "steamcommunity.com"];
+    public static readonly string[] Hosts = ["store.steampowered.com", "steamcommunity.com"];
 
     // Account, wallet, payment, purchases, login, trading and profile editing: never sent to Gemini.
-    static readonly string[] SensitivePaths =
+    public static readonly string[] SensitivePaths =
     [
         "/account", "/checkout", "/cart", "/login", "/join", "/steamaccount", "/wallet", "/digitalgiftcards",
         "/redeemwalletcode", "/email", "/twofactor", "/phone", "/gift", "/purchase", "/subscriptions",
@@ -56,7 +56,7 @@ public static class Pages
     /// is not Steam's and is ignored.</summary>
     public static bool IsLocal(string? ws, int port) =>
         Uri.TryCreate(ws, UriKind.Absolute, out var u) && u.Scheme == "ws" && u.Port == port
-        && (u.Host == "127.0.0.1" || u.Host == "localhost" || u.Host == "[::1]");
+        && u.Host == "127.0.0.1"; // Steam listens on IPv4 loopback; "localhost" could resolve elsewhere
 
     public static Verdict Judge(Target t, int port, bool chatAllowed)
     {
@@ -101,24 +101,28 @@ public static class PortOwner
     [DllImport("iphlpapi.dll", SetLastError = true)]
     static extern uint GetExtendedTcpTable(IntPtr table, ref int size, bool order, int af, int tableClass, uint reserved);
 
-    /// <summary>The process listening on 127.0.0.1 (or any address) at this TCP port, or null.</summary>
-    public static int? ListeningPid(int port)
+    /// <summary>The first process listening on this TCP port, or null.</summary>
+    public static int? ListeningPid(int port) => ListeningPids(port).Cast<int?>().FirstOrDefault();
+
+    /// <summary>Every process listening on this TCP port (IPv4).</summary>
+    public static List<int> ListeningPids(int port)
     {
+        var pids = new List<int>();
         int size = 0;
         GetExtendedTcpTable(IntPtr.Zero, ref size, false, AF_INET, TCP_TABLE_OWNER_PID_LISTENER, 0);
         var buffer = Marshal.AllocHGlobal(size);
         try
         {
-            if (GetExtendedTcpTable(buffer, ref size, false, AF_INET, TCP_TABLE_OWNER_PID_LISTENER, 0) != 0) return null;
+            if (GetExtendedTcpTable(buffer, ref size, false, AF_INET, TCP_TABLE_OWNER_PID_LISTENER, 0) != 0) return pids;
             int count = Marshal.ReadInt32(buffer);
             var rowSize = Marshal.SizeOf<MIB_TCPROW_OWNER_PID>();
             for (int i = 0; i < count; i++)
             {
                 var row = Marshal.PtrToStructure<MIB_TCPROW_OWNER_PID>(buffer + 4 + i * rowSize);
                 int rowPort = IPAddress.NetworkToHostOrder((short)(row.localPort & 0xFFFF)) & 0xFFFF;
-                if (rowPort == port) return (int)row.owningPid;
+                if (rowPort == port && !pids.Contains((int)row.owningPid)) pids.Add((int)row.owningPid);
             }
-            return null;
+            return pids;
         }
         finally
         {
@@ -126,20 +130,25 @@ public static class PortOwner
         }
     }
 
-    /// <summary>True when the port belongs to steamwebhelper.exe inside the folder of the installed Steam.</summary>
+    /// <summary>True when EVERY process listening on the port is steamwebhelper.exe inside the installed Steam's folder.</summary>
     public static bool IsSteamWebHelper(int port)
     {
         var steamExe = Steam.Executable();
-        if (steamExe == null || ListeningPid(port) is not int pid) return false;
-        try
+        var pids = ListeningPids(port);
+        if (steamExe == null || pids.Count == 0) return false;
+        var folder = Path.GetDirectoryName(steamExe)!;
+        foreach (var pid in pids)
         {
-            var path = Process.GetProcessById(pid).MainModule?.FileName;
-            return IsHelperOf(path, Path.GetDirectoryName(steamExe)!);
+            try
+            {
+                if (!IsHelperOf(Process.GetProcessById(pid).MainModule?.FileName, folder)) return false;
+            }
+            catch (Exception e) when (e is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+            {
+                return false;
+            }
         }
-        catch (Exception e) when (e is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            return false;
-        }
+        return true;
     }
 
     public static bool IsHelperOf(string? helperPath, string steamFolder) =>

@@ -4,6 +4,22 @@
 // Isso importa porque a biblioteca e o chat são React; trocar elementos quebraria a interface.
 (() => {
   'use strict';
+  // ---------- 0. Onde este script pode trabalhar ----------
+  // Só no quadro principal e só nos endereços que o serviço permite (a mesma regra do Pages.Judge, passada pelo
+  // serviço). Uma navegação para conta, carteira ou pagamento cai fora ANTES de ler qualquer texto.
+  const PERMITIDO = __PERMITIDO__;
+  const permitido = (loc) => {
+    if (loc.protocol === 'about:') return PERMITIDO.cliente;
+    if (loc.protocol !== 'https:' || !PERMITIDO.hosts.includes(loc.hostname.toLowerCase())) return false;
+    const p = loc.pathname.toLowerCase();
+    return !PERMITIDO.sensiveis.some((s) => p.startsWith(s) || p.includes(s + '/') || p.endsWith(s));
+  };
+  if (window !== window.top) return;
+  if (!permitido(location)) {
+    if (window.__babel && window.__babel.parar) window.__babel.parar();
+    return;
+  }
+  // ---------- fim da parte 0 ----------
   const VERSAO = '__VERSAO__';
   if (typeof window.__babelSend !== 'function' || (window.__babel && window.__babel.versao === VERSAO)) return;
   if (window.__babel && window.__babel.parar) window.__babel.parar();   // uma versão antiga sai de cena
@@ -203,6 +219,7 @@
 
   function despachar() {
     agendado = false;
+    if (!permitido(location)) { fila.forEach((u) => { u.estado = 'nova'; }); fila = []; return; }
     while (fila.length) {
       const lote = [];
       let tamanho = 0;
