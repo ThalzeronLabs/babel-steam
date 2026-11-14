@@ -178,6 +178,9 @@ desenvolvedor Android e de IA, e publico os meus projetos abertos na
 | [SQLite](https://sqlite.org/copyright.html) | domínio público |
 | .NET e WPF | MIT |
 
+Os textos completos das licenças e os avisos de cada componente estão em [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt),
+que também vai dentro do .zip de cada versão.
+
 Steam é uma marca da Valve Corporation. Este projeto não tem ligação com a Valve nem com o Google.
 
 ## Licença
