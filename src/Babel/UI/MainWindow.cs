@@ -20,7 +20,8 @@ public sealed class MainWindow : Window
     readonly DispatcherTimer refresh = new() { Interval = TimeSpan.FromSeconds(2) };
     int step;
     bool wizard;
-    bool startWithWindows = true, adjustSteam = true;
+    bool startWithWindows = true;
+    bool? adjustSteam; // nothing chosen until the person chooses (informed consent)
     string keyMessage = "";
     Brush keyColor = Ui.Muted;
     bool busy;
@@ -157,9 +158,10 @@ public sealed class MainWindow : Window
         notice.Children.Add(Ui.Label("Antes de seguir, com franqueza", 13, Ui.Amber, FontWeights.SemiBold));
         foreach (var line in new[]
                  {
-                     "•  O texto traduzido (inclusive análises e mensagens de chat de outras pessoas) vai para o Google, pela sua chave, e segue os termos do Google para a API do Gemini. No nível grátis, o Google pode usar esse conteúdo para melhorar os produtos dele.",
-                     "•  O Babel não é da Valve nem tem ligação com ela. Ele não mexe nos jogos nem nos arquivos da Steam, mas é uma ferramenta de terceiros: use por sua conta.",
-                     "•  A sua chave fica cifrada pelo Windows neste PC e só vai para o Google. Nada passa por nós.",
+                     "•  O Babel é independente, sem ligação com a Valve. Ele só muda o texto na tela: não mexe nos arquivos da Steam, nos jogos nem na sua conta. Mesmo assim, o Acordo de Assinatura da Steam proíbe modificar o cliente sem autorização da Valve, e a Valve pode restringir contas. Use por sua conta e risco.",
+                     "•  Enquanto a Steam estiver aberta com a opção de depuração, com ou sem o Babel, qualquer programa deste PC pode controlar a Steam logada. Use num computador em que você confia.",
+                     "•  O texto estrangeiro da tela vai para o Google pela SUA chave. A API do Gemini exige 18 anos ou mais. No nível grátis, o Google usa o texto para melhorar os produtos dele, e pessoas podem lê-lo; na União Europeia, na Suíça e no Reino Unido, só a chave paga é permitida.",
+                     "•  Por isso o Babel nunca traduz as páginas de conta, carteira, pagamento e login, e o chat dos amigos vem desligado. Nada passa por nós: não há servidor do Babel.",
                  })
         {
             var l = Ui.Label(line, 13);
@@ -274,12 +276,23 @@ public sealed class MainWindow : Window
             startWithWindows, v => startWithWindows = v));
         var gap = new Border { Height = 8 };
         opts.Children.Add(gap);
-        opts.Children.Add(Ui.Check("Ajustar a Steam para já abrir pronta para traduzir (recomendado). O Babel acrescenta a porta de depuração na inicialização da Steam e no atalho dela do menu Iniciar, e guarda como era para desfazer.",
-            adjustSteam, v => adjustSteam = v));
         body.Children.Add(Ui.Box(opts));
-        body.Children.Add(P("Se a Steam abrir por outro caminho (um atalho na área de trabalho, por exemplo), o Babel percebe e a reabre com a porta, mas nunca com um jogo aberto.", Ui.Muted, 13));
+
+        // Changing how Steam starts is the person's call: two choices, none selected.
+        var steamChoice = new StackPanel();
+        steamChoice.Children.Add(Ui.Label("Para traduzir, a Steam precisa abrir com a opção de depuração. Como você prefere?", 13.5, Ui.Text, FontWeights.SemiBold));
+        var a = new RadioButton { GroupName = "steam", IsChecked = adjustSteam == true, Margin = new Thickness(0, 10, 0, 4),
+            Content = Ui.Label("Ajustar a Steam: o Babel acrescenta a opção na inicialização da Steam e no atalho dela do menu Iniciar. Ele guarda como era, e a desinstalação desfaz.", 13.5) };
+        var b = new RadioButton { GroupName = "steam", IsChecked = adjustSteam == false, Margin = new Thickness(0, 6, 0, 0),
+            Content = Ui.Label("Não mexer na Steam: eu abro a Steam pelo botão \"Abrir a Steam\" do Babel quando quiser a tradução.", 13.5) };
+        a.Checked += (_, _) => { adjustSteam = true; Render(); };
+        b.Checked += (_, _) => { adjustSteam = false; Render(); };
+        steamChoice.Children.Add(a);
+        steamChoice.Children.Add(b);
+        body.Children.Add(Ui.Box(steamChoice, adjustSteam == null ? Ui.Accent : null));
         body.Children.Add(P("Para usar: abra uma nota de atualização ou uma análise em inglês e espere um instante. Alt + clique num trecho mostra o original; Alt + Shift + T liga e desliga a página toda.", Ui.Muted, 13));
-        var done = Ui.Button(busy ? "Preparando…" : "Concluir e abrir a Steam", Ui.Green, busy ? null : async () => await FinishAsync());
+        var done = Ui.Button(busy ? "Preparando…" : adjustSteam == null ? "Escolha uma opção acima" : "Concluir e abrir a Steam", Ui.Green,
+            busy || adjustSteam == null ? null : async () => await FinishAsync());
         return ("Tudo pronto", Nav(Ui.Button("Voltar", Ui.Line, () => { step = 1; Render(); }), done));
     }
 
@@ -289,7 +302,7 @@ public sealed class MainWindow : Window
         Render();
         try
         {
-            Install.Apply(runtime.Settings, startWithWindows, adjustSteam);
+            Install.Apply(runtime.Settings, startWithWindows, adjustSteam == true);
             if (!runtime.Running) await runtime.StartAsync();
             wizard = false;
             if (Steam.Installed() && !Steam.Running()) Steam.Open(runtime.Settings.Port, silent: false);
@@ -335,15 +348,39 @@ public sealed class MainWindow : Window
             actions.Children.Add(b);
             return b;
         }
-        Add(Ui.Button("Abrir a Steam", Ui.AccentDark, preview == null && Steam.Running() ? null : () => Steam.Open(runtime.Settings.Port, silent: false), 13.5));
+        if (preview == null && runtime.Injector?.State == ServiceState.SteamWithoutPort)
+            // the person asks for it; never with a game open
+            Add(Ui.Button(Steam.GameRunning() ? "Feche o jogo para reabrir a Steam" : "Reabrir a Steam com a tradução", Ui.AccentDark,
+                Steam.GameRunning() ? null : () => _ = Steam.ReopenAsync(runtime.Settings.Port), 13.5));
+        else
+            Add(Ui.Button("Abrir a Steam", Ui.AccentDark, preview == null && Steam.Running() ? null : () => Steam.Open(runtime.Settings.Port, silent: false), 13.5));
         var injector = runtime.Injector;
         if (injector != null || preview != null)
             Add(Ui.Button(injector?.Paused == true ? "Retomar a tradução" : "Pausar a tradução", Ui.Line, async () => { if (injector != null) { await injector.PauseAsync(!injector.Paused); Render(); } }, 13.5));
         Add(Ui.Button("Trocar a chave", Ui.Line, ShowKeyStep, 13.5));
+        Add(Ui.Button("Apagar as traduções guardadas", Ui.Line, ClearCache, 13.5));
         body.Children.Add(actions);
 
         var opts = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        var s = runtime.Settings;
         opts.Children.Add(Ui.Check("Iniciar com o Windows", Install.StartsWithWindows, Install.SetStartWithWindows));
+        opts.Children.Add(Ui.Check("Reabrir a Steam com a tradução quando ela abrir sem (nunca com um jogo aberto)", s.ReopenSteam, v =>
+        {
+            s.ReopenSteam = v;
+            s.Save();
+        }));
+        opts.Children.Add(Ui.Check("Traduzir também o chat dos amigos", s.TranslateChat, v =>
+        {
+            if (v && MessageBox.Show(this,
+                    "As mensagens dos seus amigos vão ao Google para tradução. No nível grátis, o Google pode usá-las e pessoas podem lê-las, e os termos do Google pedem que você não envie dados pessoais ao nível grátis.\n\nUse uma chave com faturamento ativado para traduzir o chat.\n\nLigar a tradução do chat?",
+                    "Traduzir o chat", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            {
+                Render();
+                return;
+            }
+            s.TranslateChat = v;
+            s.Save();
+        }));
         body.Children.Add(Ui.Box(opts));
         body.Children.Add(P("Alt + clique num trecho mostra o original · Alt + Shift + T liga e desliga a página toda.", Ui.Muted, 13));
 
@@ -373,13 +410,34 @@ public sealed class MainWindow : Window
             };
         return runtime.Injector?.State switch
         {
+            ServiceState.Translating when runtime.Translator?.LimitReached == true =>
+                ("Limite de uso do Babel atingido: volta sozinho no próximo minuto ou amanhã", Ui.Amber),
             ServiceState.Translating => ($"Traduzindo a Steam · {runtime.Injector.PagesInjected} página(s) ligadas", Ui.Green),
             ServiceState.Paused => ("Pausado: a Steam mostra os textos originais", Ui.Amber),
-            ServiceState.SteamWithoutPort => ("A Steam abriu sem a tradução: reabro sozinho quando você não estiver jogando", Ui.Amber),
+            ServiceState.SteamWithoutPort => (runtime.Settings.ReopenSteam
+                ? "A Steam abriu sem a tradução: reabro sozinho quando você não estiver jogando"
+                : "A Steam abriu sem a tradução: feche e use \"Abrir a Steam\" do Babel", Ui.Amber),
             ServiceState.PortNotSteam => ($"A porta {runtime.Settings.Port} está com outro programa", Ui.Amber),
             ServiceState.NoSteam => ("Esperando a Steam abrir", Ui.Line),
             _ => ("Ligando…", Ui.Line),
         };
+    }
+
+    async void ClearCache()
+    {
+        if (MessageBox.Show(this, "Apagar todas as traduções guardadas neste PC? Os textos voltam a ser traduzidos (e a gastar a sua cota) quando aparecerem de novo.",
+                "Apagar as traduções", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        bool wasRunning = runtime.Running;
+        runtime.Stop();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        foreach (var f in new[] { "cache.sqlite", "cache.sqlite-wal", "cache.sqlite-shm" })
+        {
+            var path = System.IO.Path.Combine(Settings.Folder, f);
+            try { if (System.IO.File.Exists(path)) System.IO.File.Delete(path); } catch (System.IO.IOException) { }
+        }
+        Log.Write("the cache was cleared by the user");
+        if (wasRunning) await runtime.StartAsync();
+        Render();
     }
 
     void Uninstall()
@@ -393,6 +451,11 @@ public sealed class MainWindow : Window
             "Desinstalar o Babel", MessageBoxButton.YesNo, MessageBoxImage.Question);
         runtime.Stop();
         Install.Uninstall(runtime.Settings, data == MessageBoxResult.Yes);
+        // The port stays open until Steam restarts. Close it for real now, if no game is running.
+        if (Steam.Running() && !Steam.GameRunning() && MessageBox.Show(this,
+                "A Steam ainda está aberta com a opção de depuração. Reiniciar a Steam agora, do jeito normal, para fechar a porta?",
+                "Desinstalar o Babel", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            _ = Steam.RestartNormallyAsync();
         MessageBox.Show(this,
             $"Pronto. Para terminar, apague a pasta do programa:\n{Install.Folder}\n\nA Steam passa a abrir como antes na próxima vez.",
             "Desinstalar o Babel", MessageBoxButton.OK, MessageBoxImage.Information);

@@ -159,16 +159,6 @@ public class SteamTests
     }
 
     [Fact]
-    public void Hidden_contexts_and_developer_tools_are_never_injected()
-    {
-        Assert.True(Steam.ShouldInject(T("Store", "https://store.steampowered.com/")));
-        Assert.False(Steam.ShouldInject(T("SharedJSContext", "https://steamloopback.host/")));
-        Assert.False(Steam.ShouldInject(T("DevTools", "devtools://devtools/bundled")));
-        Assert.False(Steam.ShouldInject(T("Worker", "https://x/", type: "service_worker")));
-        Assert.False(Steam.ShouldInject(T("Store", "https://x/", ws: null)));
-    }
-
-    [Fact]
     public void The_launch_options_are_the_documented_ones() =>
         Assert.Equal(["-cef-enable-debugging", "-devtools-port=9333"], Steam.LaunchArgs(9333));
 

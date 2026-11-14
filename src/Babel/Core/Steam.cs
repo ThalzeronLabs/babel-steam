@@ -51,11 +51,6 @@ public static class Steam
     public static bool IsSteam(IEnumerable<Target> targets) =>
         targets.Any(t => t.Title == "SharedJSContext" && t.Url.Contains("steamloopback.host"));
 
-    /// <summary>Pages worth translating: real pages, not Steam's hidden context nor developer tools.</summary>
-    public static bool ShouldInject(Target t) =>
-        t.Type == "page" && t.WebSocketUrl != null && t.Title != "SharedJSContext"
-        && !t.Url.StartsWith("devtools://") && !t.Url.StartsWith("chrome");
-
     public static void Open(int port, bool silent = true)
     {
         var exe = Executable();
@@ -64,6 +59,16 @@ public static class Steam
         if (silent) psi.ArgumentList.Add("-silent");
         foreach (var a in LaunchArgs(port)) psi.ArgumentList.Add(a);
         Process.Start(psi);
+    }
+
+    /// <summary>Closes Steam calmly and opens it the normal way, without the debugging port.</summary>
+    public static async Task RestartNormallyAsync()
+    {
+        var exe = Executable();
+        if (exe == null) return;
+        Process.Start(new ProcessStartInfo(exe, "-shutdown") { UseShellExecute = false, CreateNoWindow = true });
+        for (int i = 0; i < 90 && Running(); i++) await Task.Delay(1000);
+        Process.Start(new ProcessStartInfo(exe) { UseShellExecute = false });
     }
 
     /// <summary>Closes Steam calmly (-shutdown, like its own Exit menu) and opens it again with the port.</summary>

@@ -19,7 +19,7 @@ Brazilian Portuguese **on the spot, inside the Steam window**, with the user's o
 - **Never pays twice:** each piece of text is translated once and kept on the PC. Opening it again costs nothing.
 - **Does not break Steam:** text is replaced in place, without touching the page structure. Alt + click shows the original.
 
-> Babel is not made by or affiliated with Valve. Read [Privacy and risks](#privacy-and-risks) before using it.
+> Babel for Steam is independent and not affiliated with Valve. Read the [disclaimer](#disclaimer-security-and-privacy) before using it.
 
 ## How it works
 
@@ -39,16 +39,20 @@ Brazilian Portuguese **on the spot, inside the Steam window**, with the user's o
 If Steam is opened another way (a desktop shortcut), Babel reopens it with the port, but only with no game running,
 after 45 s of stability and at most once every 10 minutes.
 
-## Privacy and risks
+## Disclaimer, security and privacy
 
-- **What goes to Google:** the foreign text shown in Steam, including reviews, discussions and **chat messages written by
-  other people**, sent straight from the PC to the Gemini API **with the user's key**, under the
-  [Gemini API terms](https://ai.google.dev/gemini-api/terms). On the free tier, Google may use submitted content to
-  improve its products. There is no Babel server.
-- **The key** is stored in `%APPDATA%\Babel\gemini.key`, encrypted with Windows DPAPI for the current user.
-- **Port 9333** only accepts local connections, but any program on the PC can use it while Steam runs with it, the same
-  trade-off as other Steam client mods.
-- **VAC:** Babel never touches games or Steam's files, only the client's pages. Still a third-party tool: low risk, not zero.
+> **Disclaimer.** Babel is an independent project and is not affiliated with, sponsored or endorsed by Valve. Steam and the Steam logo are trademarks and/or registered trademarks of Valve Corporation in the U.S. and/or other countries. Babel uses a debugging option built into the Steam client and changes the text shown on screen. It doesn't change Steam's program files, doesn't touch your games and never acts on your account by itself. With your OK, the installer changes Steam's shortcut and startup entry so it opens with that option, and the uninstaller reverts it. The Steam Subscriber Agreement forbids modifying the client without Valve's permission, and Valve may restrict accounts. **Use at your own risk.**
+>
+> **Security.** While Steam is open with the debugging option, whether or not Babel is running, any program on your computer can control your logged-in Steam (the port only answers on this PC, 127.0.0.1). Use Babel only on a computer you trust, and start Steam normally when you don't need translation. Babel never translates account, wallet, payment or login pages.
+>
+> **Gemini.** You use your own Google AI Studio key and accept [Google's terms](https://ai.google.dev/gemini-api/terms); the quota and the bill are yours. The Gemini API requires you to be 18 or older. On the free tier, Google uses what you send to improve its products, and human reviewers may read it, so don't send personal information on that tier. In the EU, Switzerland and the UK, only paid keys are allowed. Chat translation is off by default; turn it on only with a billing-enabled key. Babel has no server: nothing goes through me.
+
+**Safeguards in the code:** an allow list of pages (the main window, the store and the community, minus account,
+wallet, payment, cart, login, trading, market, inventory and profile editing; every other client window, chat
+included, stays out); the port must belong to `steamwebhelper.exe` from Steam's own folder; connections only to
+127.0.0.1 on the configured port; exactly five DevTools commands (a test fails on any other); no automatic action on
+the account; a per-page and an app-wide budget (200,000 characters a minute, 2 million a day); Steam reopening off by
+default; the translation cache only on this PC, with a button to clear it.
 
 ## Build
 

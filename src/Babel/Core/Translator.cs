@@ -10,10 +10,14 @@ public sealed class Translator(IEngine engine, Cache cache, Settings settings)
     readonly Dictionary<string, TaskCompletionSource<Item?>> inFlight = new();
     readonly List<string> queue = [];
     readonly SemaphoreSlim slots = new(Math.Max(1, settings.ParallelRequests));
+    readonly Budget budget = new(settings.MaxCharsPerMinute, settings.MaxCharsPerDay);
     bool scheduled;
 
     public long FromCache, Translated, Failed;
     public IEngine Engine => engine;
+
+    /// <summary>True when the per-minute or per-day limit stopped a batch; the next allowed batch clears it.</summary>
+    public bool LimitReached => budget.LimitReached;
 
     public async Task<Item?[]> TranslateAsync(IReadOnlyList<string> texts)
     {
@@ -76,6 +80,12 @@ public sealed class Translator(IEngine engine, Cache cache, Settings settings)
     async Task RunAsync(List<string> batch)
     {
         IReadOnlyList<Item> result;
+        if (!budget.TryTake(batch.Sum(t => t.Length)))
+        {
+            Log.Write($"the {settings.MaxCharsPerMinute:N0}/minute or {settings.MaxCharsPerDay:N0}/day limit was reached; {batch.Count} text(s) not translated");
+            foreach (var t in batch) Deliver(t, null);
+            return;
+        }
         try
         {
             await slots.WaitAsync();

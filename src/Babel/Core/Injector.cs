@@ -15,8 +15,11 @@ public enum ServiceState { Starting, NoSteam, SteamWithoutPort, PortNotSteam, Tr
 /// script in every page and answers the translation requests the pages send through the "__babelSend" binding: a
 /// direct channel between the page and this process, with no network and no page security rules in the way.
 /// </summary>
-public sealed class Injector(Settings settings, Translator translator)
+/// <param name="portIsSteam">Who may own the port. Real use: Steam's web helper; the tests pass their own check.</param>
+public sealed class Injector(Settings settings, Translator translator, Func<int, bool>? portIsSteam = null)
 {
+    readonly Func<int, bool> portIsSteam = portIsSteam ?? PortOwner.IsSteamWebHelper;
+
     /// <summary>A guard against a page that would ask for translations without end.</summary>
     public const int MaxCharsPerMinute = 400_000;
 
@@ -85,7 +88,9 @@ public sealed class Injector(Settings settings, Translator translator)
             await SteamWithoutPortAsync();
             return;
         }
-        if (!Steam.IsSteam(targets))
+        // Two checks before any script goes anywhere: the page list looks like Steam's, and the port really belongs to
+        // steamwebhelper.exe from Steam's own folder (a page title can be imitated, the owner of a port cannot).
+        if (!Steam.IsSteam(targets) || !portIsSteam(settings.Port))
         {
             if (!warnedIntruder) Log.Write($"port {settings.Port} is not Steam's; nothing is injected");
             warnedIntruder = true;
@@ -96,7 +101,7 @@ public sealed class Injector(Settings settings, Translator translator)
         withoutPortSince = null;
         Set(ServiceState.Translating);
         var now = DateTime.UtcNow;
-        foreach (var t in targets.Where(Steam.ShouldInject))
+        foreach (var t in targets.Where(t => Pages.Judge(t, settings.Port, settings.TranslateChat) == Verdict.Translate))
         {
             if (pages.ContainsKey(t.Id)) continue;
             if (failedAt.TryGetValue(t.Id, out var f) && now - f < TimeSpan.FromSeconds(10)) continue;
@@ -115,6 +120,7 @@ public sealed class Injector(Settings settings, Translator translator)
             return;
         }
         Set(ServiceState.SteamWithoutPort);
+        if (!settings.ReopenSteam) return; // off by default: the person decides when Steam restarts
         var now = DateTime.UtcNow;
         if (withoutPortSince == null || Steam.GameRunning())
         {
@@ -205,6 +211,8 @@ public sealed class Injector(Settings settings, Translator translator)
 
         async Task<JsonNode> CommandAsync(string method, JsonObject? parameters = null)
         {
+            // The five commands Babel needs, and no other: nothing about cookies, storage, network or input.
+            if (!Pages.AllowedCommands.Contains(method)) throw new InvalidOperationException($"command not allowed: {method}");
             int id = Interlocked.Increment(ref seq);
             var tcs = new TaskCompletionSource<JsonNode>(TaskCreationOptions.RunContinuationsAsynchronously);
             waiting[id] = tcs;

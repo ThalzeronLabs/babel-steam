@@ -69,7 +69,7 @@ public sealed class InjectorTests : IDisposable
 
         using var cache = new Cache(Path.Combine(dir, "c.sqlite"), "v1");
         var settings = new Settings { Port = port };
-        var injector = new Injector(settings, new Translator(new EchoEngine(), cache, settings));
+        var injector = new Injector(settings, new Translator(new EchoEngine(), cache, settings), _ => true);
         _ = injector.RunAsync(stop.Token);
 
         var answer = await answered.Task.WaitAsync(stop.Token);
@@ -80,7 +80,8 @@ public sealed class InjectorTests : IDisposable
         Assert.Contains("Page.addScriptToEvaluateOnNewDocument", received);
         Assert.Contains("window.__babel.receber(", answer);
         Assert.Contains("[PT] The boss fight is far too hard now", Regex(answer));
-        Assert.DoesNotContain("SharedJSContext-injected", received); // the hidden context never gets the script
+        // only the five allowed DevTools commands were ever sent
+        Assert.All(received, m => Assert.Contains(m, Pages.AllowedCommands));
     }
 
     // the answer is plain-ASCII JSON inside a JS call; decode the escapes to compare the text

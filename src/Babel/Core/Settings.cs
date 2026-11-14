@@ -20,8 +20,16 @@ public sealed class Settings
     public int BatchMaxChars { get; set; } = 12000;
     public int ParallelRequests { get; set; } = 4;
 
-    /// <summary>Also translate the Steam chat windows (the messages go to Google like everything else).</summary>
-    public bool TranslateChat { get; set; } = true;
+    /// <summary>Also translate the chat windows. OFF by default: friends' messages are personal data of other people,
+    /// and Google's terms ask not to send personal information to the free tier.</summary>
+    public bool TranslateChat { get; set; }
+
+    /// <summary>Reopen Steam with the port when it was opened without it (never with a game running). OFF by default.</summary>
+    public bool ReopenSteam { get; set; }
+
+    /// <summary>A guard for the whole app, on top of the per-page one: characters sent to Gemini per minute and per day.</summary>
+    public int MaxCharsPerMinute { get; set; } = 200_000;
+    public int MaxCharsPerDay { get; set; } = 2_000_000;
 
     /// <summary>What Steam's own start-up entry and Start menu shortcut looked like before Babel added the port.</summary>
     public string? SteamRunBackup { get; set; }
